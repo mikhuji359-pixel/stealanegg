@@ -1,6 +1,6 @@
 --[[
-    Steal An Egg / Kyystarboyzz Hub [MAX ULTRA VERSION]
-    Full Rebuild - Obsidian UI + Instant Steal + Snatch Drop + Anti-Snatch + Performance
+    Steal An Egg / MK Hub [MAX ULTRA VERSION - CLEAN BG]
+    Full Rebuild - Obsidian UI + Instant Steal (Payload Bypass) + Clean Minimalist BG
     Written cleanly for zero
 ]]
 
@@ -54,8 +54,8 @@ local State = {
     HumReady        = false,
 }
 
-local Connections = {}   -- all RBXScriptConnections
-local Threads     = {}   -- all task.spawn threads
+local Connections = {}
+local Threads     = {}
 local Caches      = {
     eggList      = {},
     eggListAt    = 0,
@@ -107,7 +107,7 @@ end
 local function SafeSpawn(fn)
     return TrackThread(task.spawn(function()
         xpcall(fn, function(err)
-            warn("[Kyystarboyzz MAX] " .. tostring(err) .. "\n" .. debug.traceback())
+            warn("[MK Hub] " .. tostring(err) .. "\n" .. debug.traceback())
         end)
     end))
 end
@@ -116,7 +116,7 @@ local function Notify(title, content, time)
     if State.Unloaded then return end
     pcall(function()
         Library:Notify({
-            Title = title or "Kyystarboyzz Hub",
+            Title = title or "MK Hub",
             Description = content or "",
             Time = time or 4,
         })
@@ -217,7 +217,7 @@ local function FullUnload()
 end
 
 -- ============================================================
--- NETWORKING
+-- NETWORKING & INSTANT STEAL PAYLOAD BYPASS
 -- ============================================================
 local Packages = ReplicatedStorage:FindFirstChild("Packages")
 local Networking = Packages and Packages:FindFirstChild("Networking")
@@ -268,6 +268,36 @@ local function FireUid(remoteName, uid)
         return true
     end
     return false
+end
+
+-- Update metode payload bypass untuk menghindari cooldown server pasca update
+local function FireInstantSteal(remoteName, uid)
+    local r = GetRemote(remoteName)
+    if not r then return false end
+    
+    local success, res = pcall(function()
+        if r:IsA("RemoteFunction") then
+            return r:InvokeServer({
+                Uid = uid,
+                Timestamp = tick(),
+                Bypass = true,
+                Source = "ClientSnapshot"
+            })
+        else
+            r:FireServer({
+                Uid = uid,
+                Timestamp = tick(),
+                Bypass = true,
+                Source = "ClientSnapshot"
+            })
+            return true
+        end
+    end)
+    
+    if success and res ~= false then
+        return true
+    end
+    return FireUid(remoteName, uid)
 end
 
 -- ============================================================
@@ -360,7 +390,7 @@ local function RarityRank(name)
 end
 
 -- ============================================================
--- ADVANCED SCAN & STEAL CORE (INSTANT & SNATCH)
+-- ADVANCED SCAN & STEAL CORE
 -- ============================================================
 local function GetEggSlotsRoot()
     if Caches.slotsCache and Caches.slotsCache.Parent then
@@ -440,7 +470,6 @@ local function PassesFilter(egg)
     return true
 end
 
--- Fitur Baru: Snatch Rival Drop (Menyamber telur yang didrop script player lain)
 local function CheckAndSnatchDroppedEggs()
     if not State.SnatchDrop then return end
     if tick() - Caches.lastSnatchAt < 0.25 then return end
@@ -449,14 +478,13 @@ local function CheckAndSnatchDroppedEggs()
     for _, egg in ipairs(eggs) do
         if egg.raw and (egg.raw.Dropped or egg.raw.IsDropped or egg.raw.Carrier == nil) then
             Caches.lastSnatchAt = tick()
-            FireUid(Remotes.EggCarry, egg.uid)
+            FireInstantSteal(Remotes.EggCarry, egg.uid)
             Notify("Snatch Drop!", "Berhasil nyamber telur drop-an rival!", 1.5)
             break
         end
     end
 end
 
--- Fitur Baru: Anti-Snatch Protection (Mengamankan telur saat musuh mendekat)
 local function AntiSnatchProtectionLoop()
     while IsAlive() do
         task.wait(0.2)
@@ -481,7 +509,7 @@ end
 SafeSpawn(AntiSnatchProtectionLoop)
 
 -- ============================================================
--- AUTO STEAL LOOP (ULTRA SPEED & INSTANT)
+-- AUTO STEAL LOOP (MK GACOR MODE)
 -- ============================================================
 local function AutoStealLoop()
     while IsAlive() and State.AutoSteal do
@@ -504,18 +532,14 @@ local function AutoStealLoop()
 
         if target then
             Caches.triedUids[target.uid] = tick()
-            local ok = FireUid(Remotes.EggCarry, target.uid)
+            local ok = FireInstantSteal(Remotes.EggCarry, target.uid)
             if ok then
                 Caches.carryingUid = target.uid
                 Caches.failUids[target.uid] = nil
-                if State.InstantSteal then
-                    task.wait(0.02)
-                else
-                    task.wait(0.3)
-                end
+                task.wait(State.InstantSteal and 0.05 or 0.3)
             else
                 Caches.failUids[target.uid] = (Caches.failUids[target.uid] or 0) + 1
-                task.wait(0.15)
+                task.wait(0.2)
             end
         else
             task.wait(0.3)
@@ -531,7 +555,7 @@ local function AutoStealLoop()
 end
 
 -- ============================================================
--- FARMING & AUTOMATION LOOPS
+-- AUTOMATION LOOPS
 -- ============================================================
 local function ServerHop()
     if not IsAlive() then return end
@@ -558,7 +582,7 @@ local function AutoHatchLoop()
         for _, egg in ipairs(eggs) do
             if not IsAlive() or not State.AutoHatch then break end
             if PassesFilter(egg) or RarityWantedCount == 0 then
-                FireUid(Remotes.Hatch, egg.uid)
+                Invoke(Remotes.Hatch, egg.uid)
                 task.wait(0.25)
                 if State.HatchOnce then
                     State.AutoHatch = false
@@ -603,7 +627,7 @@ end
 -- ESP SYSTEM
 -- ============================================================
 EggESPFolder = Instance.new("Folder")
-EggESPFolder.Name = "KyystarboyzzEggESP"
+EggESPFolder.Name = "MKEggESP"
 EggESPFolder.Parent = Workspace
 
 local function ClearFolder(folder)
@@ -653,7 +677,7 @@ end
 -- VISUAL PETS (Client Side)
 -- ============================================================
 VisualPetsFolder = Instance.new("Folder")
-VisualPetsFolder.Name = "KyystarboyzzVisualPets"
+VisualPetsFolder.Name = "MKVisualPets"
 VisualPetsFolder.Parent = Workspace
 
 VisualPets = {
@@ -722,11 +746,11 @@ VisualPets.conn = TrackConn(RunService.Heartbeat:Connect(function()
 end))
 
 -- ============================================================
--- UI SETUP (OBSIDIAN MAX)
+-- UI SETUP (MK HUB CLEAN MINIMALIST)
 -- ============================================================
 local Window = Library:CreateWindow({
-    Title = "Kyystarboyzz Hub | MAX ULTRA EDITION",
-    Footer = "Obsidian Rebuild • Instant & Snatch Gacor",
+    Title = "MK Hub | MAX ULTRA EDITION",
+    Footer = "Clean Minimalist • Payload Instant Steal & Snatch",
     Center = true,
     AutoShow = true,
     Resizable = true,
@@ -766,7 +790,7 @@ MainRight:AddButton({
     end,
 })
 
--- STEAL TAB (MAX MODES)
+-- STEAL TAB
 local StealLeft  = Tabs.Steal:AddLeftGroupbox("Auto Steal & Gacor Modes")
 local StealRight = Tabs.Steal:AddRightGroupbox("Filters")
 
@@ -783,7 +807,7 @@ StealLeft:AddToggle("AutoSteal", {
 })
 
 StealLeft:AddToggle("InstantSteal", {
-    Text = "Instant Steal (Bypass Jeda)",
+    Text = "Instant Steal (Payload Bypass)",
     Default = true,
     Callback = function(v) State.InstantSteal = v end,
 })
@@ -1009,7 +1033,7 @@ VisRight:AddButton({
 local CfgLeft  = Tabs.Config:AddLeftGroupbox("Info")
 local CfgRight = Tabs.Config:AddRightGroupbox("Danger Zone")
 
-CfgLeft:AddLabel("Kyystarboyzz Hub MAX\nInstant Steal + Snatch + Anti-Snatch", true)
+CfgLeft:AddLabel("MK Hub MAX\nInstant Steal + Snatch + Anti-Snatch", true)
 
 CfgRight:AddButton({
     Text = "Unload Script (Full Clean)",
@@ -1025,7 +1049,7 @@ CfgRight:AddButton({
 if not Networking then
     Notify("Warning", "Packages.Networking missing!", 8)
 else
-    Notify("Kyystarboyzz MAX", "Loaded successfully. Gacor mode ready!", 5)
+    Notify("MK Hub", "Loaded successfully. Gacor mode ready!", 5)
 end
 
-print("[Kyystarboyzz] MAX Ultra Version Loaded.")
+print("[MK Hub] MAX Ultra Version Loaded.")
